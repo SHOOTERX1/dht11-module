@@ -20,7 +20,6 @@ enum DHT11_DATA_MEMBER {
 
 typedef struct {
     unsigned char data[DHT11_ARRAY_LEN];
-    int size;
 } dht11_data_t;
 
 #endif // DHT11_CONSUMER_H
