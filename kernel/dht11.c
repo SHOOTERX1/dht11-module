@@ -7,9 +7,11 @@
 #include <linux/slab.h>
 #include <linux/kernel.h>
 #include <asm/uaccess.h>
-#include <linux/gpio.h> // using for debug
+//#include <linux/gpio.h> // using for debug
 
 #include "dht11-sensor-core.h"
+
+// --TODO-- : 考虑open()的需求
 
 struct dht11_sensor {
     struct miscdevice misc;
@@ -21,32 +23,10 @@ struct dht11_sensor {
 static long dht11_ioctl(struct file *filp, unsigned int cmd,
                     unsigned long arg)
 {
-    /* gpio debug */
-    struct dht11_sensor *d = container_of(filp->private_data, struct dht11_sensor, misc);
-    switch (cmd)
-    {
-        case 0x01:
-            gpio_set_value(d->core.dht11_gpio, 1);
-            break;
-        case 0x02:
-            gpio_set_value(d->core.dht11_gpio, 0);
-            break;
-        case 0x03:
-            gpio_direction_input(d->core.dht11_gpio);
-            break;
-        case 0x04:
-            gpio_direction_output(d->core.dht11_gpio, 1);
-        default:
-            return -EINVAL;
-    }
+	// -TODO-: 传感器的io控制（重置、定时器控制）
     return 0;
 }
 
-// static ssize_t dht11_read(struct file *filp, char __user *buf,
-//                     size_t size, loff_t *ppos)
-// {
-//     return 0;
-// }
 static ssize_t dht11_read(struct file *filp, char __user *buf,
                     size_t size, loff_t *ppos)
 {
@@ -55,26 +35,27 @@ static ssize_t dht11_read(struct file *filp, char __user *buf,
     ssize_t retval = 0;
     struct dht11_sensor *dhtp = container_of(filp->private_data,
                     struct dht11_sensor, misc);
-    retval = dht11_transfer_data(&dhtp->core);
-    if(retval < 0) {
-            printk(KERN_WARNING "dht11_transfer_data failure. errcode: %d", (int)retval);
-            // return retval;
-    }
 
-    if(p >= ARRAY_SIZE(dhtp->core.sensor_data))
+	struct dht11_return_val* dht11_ret  = NULL;
+	dht11_ret = dht11_transfer_data(&dhtp->core);
+	if (!dht11_ret) {
+		printk(KERN_NOTICE "dht11_ret:NULL, data not ready, dht11 is initializing.\n");
+		return 0;
+	}
+
+    if(p >= sizeof(struct dht11_return_val))
         return 0;
-    if(count > ARRAY_SIZE(dhtp->core.sensor_data) - p)
-        count = ARRAY_SIZE(dhtp->core.sensor_data) - p;
+    if(count > sizeof(struct dht11_return_val) - p)
+        count = sizeof(struct dht11_return_val) - p;
 
     mutex_lock(&dhtp->dht11_mutex);
-    if(copy_to_user(buf, dhtp->core.sensor_data, count)) {
-        retval = -EFAULT;
-        goto out;
-    }
+	unsigned long missing;
+	missing = copy_to_user(buf, dht11_return_val, count);
     *ppos += count;
     retval = count;
 out:
     mutex_unlock(&dhtp->dht11_mutex);
+	kfree(dht11_ret);
     return retval;
 }
 
