@@ -37,7 +37,7 @@ struct dht11_sensor_core {
 	* 初始化：在队满之前可以视为初始化未完成。
 	*/
 	u8 sensor_data[DHT11_SENSOR_DATA_SIZE][5];
-	int sensor_data_front;	// 头指针（写指针）
+	int sensor_data_front;		// 头指针（写指针）
 	int sensor_data_rear;		// 尾指针（读指针）
 
 	spinlock_t sensor_core_lock;
@@ -60,7 +60,7 @@ struct dht11_return_val {
 	u8 data[5];
 	/*
 	* 是否是过期数据
-	数据传输失败后，由data_state指示
+	* 数据传输失败后，由data_state指示
 	*/
 	int is_expried;
 };

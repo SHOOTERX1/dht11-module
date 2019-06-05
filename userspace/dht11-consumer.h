@@ -18,8 +18,14 @@ enum DHT11_DATA_MEMBER {
     CHECK_BIT
 };
 
+/* dht11传感器数据返回结构 */
 typedef struct {
-    unsigned char data[DHT11_ARRAY_LEN];
+	unsigned char data[5];
+	/*
+	* 是否是过期数据
+	* 数据传输失败后，由data_state指示
+	*/
+	int is_expried;
 } dht11_data_t;
 
 #endif // DHT11_CONSUMER_H

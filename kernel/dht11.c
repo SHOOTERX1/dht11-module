@@ -11,6 +11,8 @@
 
 #include "dht11-sensor-core.h"
 
+//#define DEBUG
+
 // --TODO-- : ¿¼ÂÇopen()µÄÐèÇó
 
 struct dht11_sensor {
@@ -37,6 +39,13 @@ static ssize_t dht11_read(struct file *filp, char __user *buf,
                     struct dht11_sensor, misc);
 
 	struct dht11_return_val* dht11_ret  = NULL;
+	unsigned long missing;
+
+#ifdef DEBUG
+	printk(KERN_NOTICE "dht11_read called\n");
+#endif // DEBUG
+
+
 	dht11_ret = dht11_transfer_data(&dhtp->core);
 	if (!dht11_ret) {
 		printk(KERN_NOTICE "dht11_ret:NULL, data not ready, dht11 is initializing.\n");
@@ -49,11 +58,10 @@ static ssize_t dht11_read(struct file *filp, char __user *buf,
         count = sizeof(struct dht11_return_val) - p;
 
     mutex_lock(&dhtp->dht11_mutex);
-	unsigned long missing;
-	missing = copy_to_user(buf, dht11_return_val, count);
+	missing = copy_to_user(buf, dht11_ret, count);
     *ppos += count;
     retval = count;
-out:
+
     mutex_unlock(&dhtp->dht11_mutex);
 	kfree(dht11_ret);
     return retval;
@@ -104,6 +112,11 @@ static int dht11_sensor_probe(struct platform_device *pdev)
         goto core_init_err;
     }
     /* ok! */
+
+#ifdef DEBUG
+	printk(KERN_INFO "dht11_bc in!\n");
+#endif // DEBUG
+
     return 0;
 core_init_err:
     misc_deregister(&dhtp->misc);

@@ -11,20 +11,21 @@
 #include <linux/hrtimer.h>
 #include <linux/ktime.h>
 #include <linux/string.h>
+#include <linux/slab.h>
 
 #include "dht11-sensor-core.h"
 
 #define DHT11_RECV_HIGH 1
 #define DHT11_RECV_LOW 0
 
-static inline enum DHT11_DATA_STATE dht11_check_result(struct dht11_sensor_core *s)
+static inline enum DHT11_DATA_STATE dht11_check_result(struct dht11_sensor_core *s, int whitch)
 {
 	return 
-		s->sensor_data[DHT11_HUMI_HI] +
-		s->sensor_data[DHT11_HUMI_LO] +
-		s->sensor_data[DHT11_TEMP_HI] +
-		s->sensor_data[DHT11_TEMP_LO] ==
-		s->sensor_data[DHT11_CHECK_BIT] ? DHT11_DATA_OK : DHT11_DATA_ERR;
+		s->sensor_data[whitch][DHT11_HUMI_HI] +
+		s->sensor_data[whitch][DHT11_HUMI_LO] +
+		s->sensor_data[whitch][DHT11_TEMP_HI] +
+		s->sensor_data[whitch][DHT11_TEMP_LO] ==
+		s->sensor_data[whitch][DHT11_CHECK_BIT] ? DHT11_DATA_OK : DHT11_DATA_ERR;
 }
 
 static enum hrtimer_restart dht11_hrtimer_callback(struct hrtimer *hrt)
@@ -63,7 +64,7 @@ static enum hrtimer_restart dht11_hrtimer_callback(struct hrtimer *hrt)
     /* reset gpio direction */
     gpio_direction_output(s->gpio, 1);
 	/* check the result */
-	s->data_state = dht11_check_result(s);
+	s->data_state = dht11_check_result(s, which);
 	if (s->data_state == DHT11_DATA_OK) {
 		// seqlock
 		write_seqlock(&s->read_lock);
@@ -108,8 +109,8 @@ int dht11_init_sensor_core(struct dht11_sensor_core *s, struct platform_device *
 	seqlock_init(&s->read_lock);
 
     /* init hrtimer */
-    hrtimer_init(&s->sensor_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-    s->sensor_hrtimer.function = dht11_hrtimer_callback;
+	hrtimer_init(&s->sensor_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	s->sensor_hrtimer.function = dht11_hrtimer_callback;
 	hrtimer_init(&s->schedule_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	s->schedule_timer.function = dht11_schedule_timer_callback;
 
@@ -121,34 +122,35 @@ int dht11_init_sensor_core(struct dht11_sensor_core *s, struct platform_device *
 void dht11_release_sensor_core(struct dht11_sensor_core *s, struct platform_device *pdev)
 {
     struct gpio_desc *g = gpio_to_desc(s->gpio);
+	while (hrtimer_try_to_cancel(&s->schedule_timer) == -1);
     devm_gpiod_put(&pdev->dev, g);
 }
 
 /*
 dht11_transfer_data:
 	@s: pointer to strcut dht11_sensor_core
-	Returns: the sensor data structure  --remember to free the retval£¡
+	Returns: the sensor data structure  --remember to free the retval!
 */
  struct dht11_return_val* dht11_transfer_data(struct dht11_sensor_core *s)
 {
 	 struct dht11_return_val* ret;
 	 unsigned int seqcount;
-	 ret = kmalloc(sizeof(*ret), GFP_KERNEL);
+	 ret = kzalloc(sizeof(*ret), GFP_KERNEL);
 	 do {
 		 seqcount = read_seqbegin(&s->read_lock);
-		 if ((s->sensor_data_front + 2) % DHT11_SENSOR_DATA_SIZE £¡ = s->sensor_data_rear)
+		 if ((s->sensor_data_front + 2) % DHT11_SENSOR_DATA_SIZE != s->sensor_data_rear)
 			 goto out; // initializing...
 		 //  copy
-		 memmove(ret->data, s->sensor_data[s->sensor_data_rear], sizeof(u8) * 5)£»
+		 memmove(ret->data, s->sensor_data[s->sensor_data_rear], sizeof(u8) * 5);
 	 } while (read_seqretry(&s->read_lock,  seqcount));
 
 	if (s->data_state == DHT11_DATA_OK)
-		ret->is_epxried = 0;
+		ret->is_expried = 0;
 	else
 		ret->is_expried = (!0);
 	return ret;
 
 out:
-	kfree();
+	kfree(ret);
 	return NULL;
 }
